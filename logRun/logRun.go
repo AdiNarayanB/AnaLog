@@ -94,40 +94,46 @@ func parsePatternJson(patternFilePath string) map[string]int {
 }
 
 func getTermCount(logText string, contextRange int) []termCount {
-	seperator := " "
-	fmt.Println(strings.Split(logText, "\n")[2])
-	logTextSplitLine := strings.Split(logText, "\n")
 
-	termList := strings.Split(logText, seperator)
-	fmt.Println(termList[0])
+	logTextSplitLine := strings.Split(logText, "\n")
 	termCountMap := make(map[string]int)
 
-	for i := 0; i < len(logTextSplitLine); i += 1 {
-		termList := strings.Split(logTextSplitLine[i], " ")
-		var phrase = new(string)
-		if len(termList) < contextRange {
-			phrase := strings.Join(termList[i:len(termList)], " ")
-		} else {
-			phrase := strings.Join(termList[i:i+contextRange], " ")
+	for i := range logTextSplitLine {
+		LogLine := logTextSplitLine[i]
+		phrases := strings.Split(LogLine, " ")
+		var termPhraseList []string
+		for i := range phrases {
+			if contextRange < len(phrases) {
+				termPhrase := strings.Join(phrases[i:i+contextRange-1], " ")
+				termPhraseList = append(termPhraseList, termPhrase)
+			} else {
+				termPhraseList = append(termPhraseList, strings.Join(phrases, " "))
+			}
 		}
-		_, ok := termCountMap[phrase]
+		for i := range termPhraseList {
+			_, ok := termCountMap[termPhraseList[i]]
 
-		if ok {
-			termCountMap[phrase] = termCountMap[phrase] + 1
-		} else {
-			termCountMap[phrase] = 1
+			if ok {
+				termCountMap[termPhraseList[i]] = termCountMap[termPhraseList[i]] + 1
+			} else {
+				termCountMap[termPhraseList[i]] = 1
 
+			}
 		}
+
 	}
+
 	var termCountList []termCount
 
 	for phrase, count := range termCountMap {
+		fmt.Println(phrase)
 		var termCountItem = new(termCount)
 		termCountItem.term = phrase
 		termCountItem.count = count
 		termCountList = append(termCountList, *termCountItem)
 
 	}
+
 	return termCountList
 
 }
@@ -139,10 +145,12 @@ func aggrTermCounts(directoryPath string, contextLength int) []filenameTerms {
 		globalTermCountMap := make(map[string]int)
 		filepathText := getTextFromFile(directoryPath + filePathList[i])
 		termCountListFile := getTermCount(filepathText, contextLength)
-		for termCountItem := range termCountListFile {
-			var termCountItemVal = reflect.ValueOf(termCountItem)
-			var termCountItemPhrase = reflect.Indirect(termCountItemVal).FieldByName("term").String()
+		fmt.Println(termCountListFile)
+		for termCountItemIndex := range termCountListFile {
+			var termCountItemVal = reflect.ValueOf(termCountListFile[termCountItemIndex])
 
+			var termCountItemPhrase = reflect.Indirect(termCountItemVal).FieldByName("term").String()
+			fmt.Println(termCountItemPhrase)
 			count, ok := globalTermCountMap[termCountItemPhrase]
 			if ok {
 				globalTermCountMap[termCountItemPhrase] = globalTermCountMap[termCountItemPhrase] + count
@@ -150,6 +158,7 @@ func aggrTermCounts(directoryPath string, contextLength int) []filenameTerms {
 				globalTermCountMap[termCountItemPhrase] = count
 			}
 		}
+
 		phrases := make([]string, 0, len(globalTermCountMap))
 		for phrase := range globalTermCountMap {
 			phrases = append(phrases, phrase)
@@ -162,6 +171,7 @@ func aggrTermCounts(directoryPath string, contextLength int) []filenameTerms {
 		for phrase, count := range globalTermCountMap {
 			var termCountItem = new(termCount)
 			termCountItem.term = phrase
+			fmt.Println(count)
 			termCountItem.count = count
 			termCountList = append(termCountList, *termCountItem)
 
@@ -172,6 +182,7 @@ func aggrTermCounts(directoryPath string, contextLength int) []filenameTerms {
 
 		filenameTermList = append(filenameTermList, *fileTermCountList)
 	}
+	fmt.Println(filenameTermList)
 	return filenameTermList
 
 }
@@ -183,31 +194,48 @@ func getSeverityFromPatternSpec(pspec *PatternSpec, prop string) string {
 
 }
 
+func splitLogTextIntoLines(logText string) []string {
+	return strings.Split(logText, "\n")
+
+}
+
 func applyPatternOnText(logName string, logText string, patternList []PatternSpec) filenameRegex {
 
 	hitList := make([]Hit, 0, len(patternList))
-	fmt.Println(patternList)
+
 	for i := 0; i < len(patternList); i += 1 {
 		var PatternContent = reflect.ValueOf(patternList[i])
 		var PatternContentVal = reflect.Indirect(PatternContent).FieldByName("PatternContent").String()
+
 		var PatternSeverity = reflect.ValueOf(patternList[i])
 		fmt.Println(reflect.Indirect(PatternSeverity).FieldByName("Severity"))
 		var PatternSeverityVal = reflect.Indirect(PatternSeverity).FieldByName("Severity").Int()
 		patternCompiled := regexp.MustCompile(PatternContentVal)
+		fmt.Println(patternCompiled)
+		fmt.Println(logText)
 
-		matches := patternCompiled.FindAllStringIndex(logText, -1)
+		logTextLines := splitLogTextIntoLines(logText)
 
-		for i := 0; i < len(matches); i++ {
-			var patternHit = new(Hit)
-			var pspec = new(PatternSpec)
-			pspec.PatternContent = PatternContentVal
-			pspec.Severity = int(PatternSeverityVal)
-			patternHit.frequency = len(matches)
-			patternHit.pattern = *pspec
-			hitList = append(hitList, *patternHit)
+		for i := 0; i < len(logTextLines); i++ {
+			fmt.Println(strings.Split(logText, "\n"))
+
+			fmt.Println(logTextLines[i] + " and " + PatternContentVal)
+			matches := patternCompiled.FindAllStringIndex(logTextLines[i], -1)
+
+			for i := 0; i < len(matches); i++ {
+
+				var patternHit = new(Hit)
+				var pspec = new(PatternSpec)
+				pspec.PatternContent = PatternContentVal
+				pspec.Severity = int(PatternSeverityVal)
+				patternHit.frequency = len(matches)
+				patternHit.pattern = *pspec
+				hitList = append(hitList, *patternHit)
+			}
 		}
 
 	}
+	fmt.Println(hitList)
 	sort.Slice(hitList, func(i, j int) bool {
 
 		return getSeverityFromPatternSpec(&hitList[i].pattern, "Severity") < getSeverityFromPatternSpec(&hitList[j].pattern, "Severity")
@@ -276,6 +304,7 @@ func aggrResults(directoryPath string, patternFilePath string, contextLength int
 
 	filePathList := getAllFilePaths(directoryPath)
 	filenameRegexList := aggrMatches(directoryPath, patternFilePath)
+	fmt.Println(filenameRegexList)
 	filenameTermList := aggrTermCounts(directoryPath, contextLength)
 
 	filenameRegexTermsList := make([]filenameRegexTerms, 0, len(filePathList))
