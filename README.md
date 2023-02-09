@@ -1,4 +1,4 @@
-[
+
 # AnaLog
 
 Note: This Project is a work in progress. Help is appreciated! Look at the contributing section to look at some features that could be worked on!
